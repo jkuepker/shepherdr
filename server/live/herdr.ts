@@ -6,19 +6,13 @@ import { connect } from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { BOX, script, sshArgs } from './box.ts'
+import { BACKEND, HerdrError } from './backend.ts'
+import { hc, HcSubscription } from './hc.ts'
+
+export { BACKEND, HerdrError }
 
 export function socketPath() {
   return process.env.HERDR_SOCKET_PATH ?? process.env.HERDR_SOCKET ?? join(homedir(), '.config', 'herdr', 'herdr.sock')
-}
-
-export class HerdrError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'HerdrError'
-  }
 }
 
 let n = 0
@@ -181,7 +175,7 @@ export interface WorktreeSpace {
   already_open?: boolean
 }
 
-export const herdr = {
+const herdrApi = {
   ping: () => rpc<{ version?: string; protocol?: number }>('ping', {}, 3000),
   agents: () => rpc<{ agents: AgentInfo[] }>('agent.list').then((r) => r.agents),
   agent: (target: string) => rpc<{ agent: AgentInfo }>('agent.get', { target }).then((r) => r.agent),
@@ -229,13 +223,16 @@ export const herdr = {
   notify: (title: string, body: string) => rpc('notification.show', { title, body }).catch(() => undefined),
 }
 
+/** herdr's API, or the same calls on herdr-core (hc.ts) when Shepherdr runs there (backend.ts) */
+export const herdr: typeof herdrApi = BACKEND === 'hc' ? hc : herdrApi
+
 export type HerdrEvent = { event: string; data: Record<string, unknown> }
 
 /**
  * Keeps one subscription open and reopens it whenever it closes (herdr closes a subscriber that falls behind).
  * Callers re-read state from a snapshot after `onOpen`, so nothing missed in between stays missed.
  */
-export class Subscription {
+class HerdrSubscription {
   private sock: Conn | null = null
   private stopped = false
   private retry?: ReturnType<typeof setTimeout>
@@ -316,3 +313,7 @@ export class Subscription {
     this.sock = null
   }
 }
+
+/** herdr's event stream, or hc's (hc.ts) when Shepherdr runs there */
+export const Subscription = (BACKEND === 'hc' ? HcSubscription : HerdrSubscription) as typeof HerdrSubscription
+export type Subscription = HerdrSubscription

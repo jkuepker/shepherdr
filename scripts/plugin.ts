@@ -9,6 +9,7 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { takeOver } from './take-over.ts'
 import { prepare } from './prepare.ts'
+import { BACKEND } from '../server/live/backend.ts'
 
 const ROOT = resolve(process.env.HERDR_PLUGIN_ROOT ?? join(import.meta.dir, '..'))
 const STATE = process.env.HERDR_PLUGIN_STATE_DIR ?? join(process.env.SHEPHERDR_HOME ?? join(homedir(), '.shepherdr'), 'run')
@@ -68,11 +69,14 @@ async function kill(p: number) {
 }
 
 async function start(): Promise<boolean> {
-  // a failure here never keeps Shepherdr from starting; it is tried again at the next start
-  try {
-    takeOver(ROOT)
-  } catch (e) {
-    console.log(`Tidying away herdr-projects failed: ${(e as Error).message}`)
+  // a failure here never keeps Shepherdr from starting; it is tried again at the next start. On herdr-core there is no
+  // herdr plugin to tidy away
+  if (BACKEND !== 'hc') {
+    try {
+      takeOver(ROOT)
+    } catch (e) {
+      console.log(`Tidying away herdr-projects failed: ${(e as Error).message}`)
+    }
   }
   let replace: Awaited<ReturnType<typeof running>> = null
   if (await answering()) {

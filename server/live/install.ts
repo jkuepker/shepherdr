@@ -14,6 +14,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { ROOT } from '../root.ts'
 import { helperDir, q, sshArgs, type BoxInfo } from './box.ts'
+import { BACKEND } from './backend.ts'
 
 /** a machine as herdr saved it (herdr machine list --json) */
 export interface Saved {
@@ -24,9 +25,9 @@ export interface Saved {
   enabled: boolean
 }
 
-export async function herdrJson<T>(args: string[], fallback: T): Promise<T> {
+export async function herdrJson<T>(args: string[], fallback: T, bin = 'herdr'): Promise<T> {
   try {
-    const p = Bun.spawn(['herdr', ...args], { stdout: 'pipe', stderr: 'pipe' })
+    const p = Bun.spawn([bin === 'hc' ? process.env.SHEPHERDR_HC || 'hc' : bin, ...args], { stdout: 'pipe', stderr: 'pipe' })
     const t = setTimeout(() => p.kill(), 20_000)
     const out = await new Response(p.stdout).text()
     await p.exited
@@ -37,11 +38,33 @@ export async function herdrJson<T>(args: string[], fallback: T): Promise<T> {
   }
 }
 
-/** every machine saved in herdr's Remote that is turned on */
-export const savedMachines = async () => (await herdrJson<Saved[]>(['machine', 'list', '--json'], [])).filter((m) => m.enabled !== false && m.label)
+/** a machine herdr-core knows (hc machine ls --json): its name there is its label here */
+interface HcMachine {
+  id: string
+  name: string
+  target: string | null
+  session: string | null
+  state: string
+  via?: boolean | string
+}
+
+const hcMachines = async () => (await herdrJson<{ machines?: HcMachine[] }>(['machine', 'ls', '--json'], {}, 'hc')).machines ?? []
+
+/** only the machines SHEPHERDR_MACHINES names, when it is set ("" for none) */
+const picked = (label: string) => process.env.SHEPHERDR_MACHINES === undefined || process.env.SHEPHERDR_MACHINES.split(',').map((s) => s.trim()).includes(label)
+
+/** every machine saved in herdr's Remote that is turned on; on herdr-core, every machine `hc machine` added that SSH
+ *  reaches (one reached through a --via command has no SSH target for git and the logs) */
+export const savedMachines = async (): Promise<Saved[]> =>
+  BACKEND === 'hc'
+    ? (await hcMachines()).filter((m) => m.target && !m.via && picked(m.name)).map((m) => ({ id: m.id, label: m.name, target: m.target!, session: m.session ?? 'default', enabled: true }))
+    : (await herdrJson<Saved[]>(['machine', 'list', '--json'], [])).filter((m) => m.enabled !== false && m.label && picked(m.label))
 
 /** whether herdr reaches each: "reachable", or what is wrong */
-export const machineStatus = async () => Object.fromEntries((await herdrJson<{ label: string; status: string; error: string | null }[]>(['machine', 'status', '--json'], [])).map((m) => [m.label, m]))
+export const machineStatus = async () =>
+  BACKEND === 'hc'
+    ? Object.fromEntries((await hcMachines()).map((m) => [m.name, { label: m.name, status: m.state === 'connected' ? 'reachable' : m.state, error: m.state === 'connected' ? null : `herdr-core says ${m.state}` }]))
+    : Object.fromEntries((await herdrJson<{ label: string; status: string; error: string | null }[]>(['machine', 'status', '--json'], [])).map((m) => [m.label, m]))
 
 /** a command on a machine over the shared SSH connection, before a worker for it runs */
 export async function onMachine(target: string, script: string, o: { stdin?: Uint8Array | string; timeoutMs?: number } = {}) {
@@ -76,7 +99,7 @@ lp=$("\${SHELL:-/bin/sh}" -lc 'echo "@@$PATH@@"' 2>/dev/null </dev/null | sed -n
 lp="$HOME/.local/bin:$HOME/.bun/bin:/opt/homebrew/bin:/usr/local/bin:$lp"
 echo "path=$lp"
 PATH="$lp"
-for t in herdr git perl gh claude codex pi tar; do if command -v $t >/dev/null 2>&1; then echo "tool.$t=$(command -v $t)"; fi; done
+for t in herdr herdr-core hc git perl gh claude codex pi tar; do if command -v $t >/dev/null 2>&1; then echo "tool.$t=$(command -v $t)"; fi; done
 perl -MJSON::PP -e1 2>/dev/null && echo "tool.jsonpp=1"
 cat "$HOME/.shepherdr/helper/version" 2>/dev/null | sed 's/^/helper=/'
 cat "$HOME/.shepherdr/helper/browser-version" 2>/dev/null | sed 's/^/browser=/'
@@ -219,7 +242,7 @@ export function boxInfo(m: Saved, p: Probe): BoxInfo {
 /** what a machine lacks for Shepherdr, in words: nothing when all is there */
 export function lacks(p: Probe): string[] {
   const out: string[] = []
-  if (!p.tools.herdr) out.push('herdr')
+  if (BACKEND === 'hc' ? !p.tools['herdr-core'] && !p.tools.hc : !p.tools.herdr) out.push(BACKEND === 'hc' ? 'herdr-core' : 'herdr')
   if (!p.tools.git) out.push('git')
   if (!p.tools.perl || !p.tools.jsonpp) out.push('perl (with JSON::PP)')
   if (!p.tools.tar) out.push('tar')

@@ -11,7 +11,7 @@ import { dirname, join, relative } from 'node:path'
 import { Emitter } from '../source.ts'
 import { readJson, writeJson } from '../store.ts'
 import type { AgentRuntime, TermScreen } from '../../shared/types.ts'
-import { herdr, Subscription, type AgentInfo, type AgentStatus, type HerdrError, type HerdrEvent } from './herdr.ts'
+import { BACKEND, herdr, Subscription, type AgentInfo, type AgentStatus, type HerdrError, type HerdrEvent } from './herdr.ts'
 import { ClaudeSessions, Reviewers, screenBackground, sessionBackground, type Background } from './readers/background.ts'
 import { claudeHome, claudeLogPath, findClaudeLog, findCodexLog, findLog, findPiLog, logKind, mainCodexLog } from './readers/find.ts'
 import { effortFor, modelArg } from './models.ts'
@@ -771,6 +771,8 @@ export class Agents extends Emitter<Events> {
   private async launch(input: Spec) {
     this.launchAllowed?.(input)
     const { first, pane: place, was, fresh, ...spec } = await (this.prepare?.(input) ?? input)
+    // an isolated launch types into a pane's own shell, which a herdr-core terminal doesn't have (hc.ts)
+    if (spec.isolation && BACKEND === 'hc') throw new Error('Autopilot isolation needs herdr: Shepherdr runs on herdr-core here. Autopilot was not started.')
     this.secretAccess.revoke(spec.key)
     this.routes.delete(spec.key)
     const old = this.records[spec.key]

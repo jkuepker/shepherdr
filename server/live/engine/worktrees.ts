@@ -2,8 +2,10 @@
 // herdr's sidebar, made, opened again and removed through herdr's worktree API. Putting it away never loses work: a
 // checkout with uncommitted changes, or a branch with work main lacks, is kept and said so, and nothing is forced. A
 // repo space herdr opened only because a task asked for a worktree is closed again with the repo's last task space,
-// unless you have started using it.
+// unless you have started using it. On herdr-core (hc.ts) git makes and removes the worktrees, and a task's space is a
+// space of its own in the Herdr app: nothing nests, so no repo space is opened for it, nor closed again.
 import { boxHome } from '../box.ts'
+import { BACKEND } from '../backend.ts'
 import { existsSync, realpathSync } from '../mfs.ts'
 import { readJson, writeJson } from '../../store.ts'
 import { herdr, type WorkspaceInfo, type WorktreeFrom, type WorktreeSpace } from '../herdr.ts'
@@ -61,6 +63,7 @@ export class Worktrees {
    * noted so it can be closed again with the repo's last task space.
    */
   private async opening(home: Home, f: (from: WorktreeFrom) => Promise<WorktreeSpace>): Promise<WorktreeSpace> {
+    if (BACKEND === 'hc') return f({ cwd: home.repo })
     const list = await this.h.workspaces().catch(() => null)
     const own = list?.find((w) => w.label === home.name && (!w.worktree || (!w.worktree.is_linked_worktree && real(w.worktree.checkout_path) === real(home.repo))))
     const known = own ?? (list ? this.repoSpaces(list, home.repo)[0] : undefined)

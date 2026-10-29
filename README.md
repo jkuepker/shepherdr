@@ -83,7 +83,7 @@ The next herdr start, or the next press of the open key, swaps the running Sheph
 
 ### Do I need to know how to code?
 
-You need to be comfortable in a terminal for the install. After that everything happens in the app: you write to coordinators and answer cards, and Settings holds the few defaults. You'll need macOS or Linux, herdr 0.9 or newer, Git, Tailscale to reach it from your other devices, and an agent CLI herdr can start: Claude Code, Codex, pi or another. Bun comes by itself. `gh` (pull requests), Chrome for the shared browser and an ElevenLabs key for voice are optional. [Get started](docs/get-started.md) covers the prerequisites.
+You need to be comfortable in a terminal for the install. After that everything happens in the app: you write to coordinators and answer cards, and Settings holds the few defaults. You'll need macOS or Linux, herdr 0.9 or newer, Git, Tailscale to reach it from your other devices, and an agent CLI herdr can start: Claude Code, Codex, pi or another. Bun comes by itself. `gh` (pull requests), Chrome for the shared browser and an ElevenLabs key for voice are optional. [Get started](docs/get-started.md) covers the prerequisites. To run the agents in herdr-core instead, so the Herdr desktop app shows them, see [Running on herdr-core](docs/hc.md).
 
 ### How do I check that Shepherdr is running?
 
