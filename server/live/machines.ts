@@ -19,6 +19,7 @@ import { HOME, readJson, writeJson } from '../store.ts'
 import { boxInfo, browserVersion, helperVersion, installHelper, lacks, machineStatus, onMachine, probe, savedMachines, type Probe, type Saved } from './install.ts'
 import { mirrorHomes } from './mirror.ts'
 import { q, sshArgs } from './box.ts'
+import { BACKEND } from './backend.ts'
 import { MERGE_DEADLINE } from './engine/engine.ts'
 
 export interface MachineRec {
@@ -261,7 +262,7 @@ export class Machines extends Emitter<Events> {
         }
         const st = status[m.label]
         if (st && st.status !== 'reachable' && !l.worker) {
-          l.state = `herdr can't reach it: ${st.error ?? st.status}`
+          l.state = `${BACKEND === 'hc' ? 'herdr-core' : 'herdr'} can't reach it: ${st.error ?? st.status}`
           l.connecting = false
           this.emit('snapshot')
           continue
@@ -442,7 +443,7 @@ export class Machines extends Emitter<Events> {
       l.rec.lastSeen = Date.now()
       const herdrUp = !!l.snap.machines?.length && !l.snap.machines.some((m) => m.status === 'off')
       l.health.observe(herdrUp)
-      l.state = herdrUp ? 'Ready' : "Its herdr isn't answering"
+      l.state = herdrUp ? 'Ready' : BACKEND === 'hc' ? "Its herdr-core isn't answering" : "Its herdr isn't answering"
       l.connecting = false
       this.keep(l)
       if (!herdrUp) {
@@ -634,7 +635,7 @@ export class Machines extends Emitter<Events> {
       const missing = p ? [!p.tools.gh && 'gh (pull requests of GitHub repos)', !p.tools.claude && 'Claude Code', !p.tools.codex && 'Codex'].filter(Boolean) : []
       out.push(`${l.rec.machine} (${l.saved.target}): ${l.lacks.length ? `needs ${l.lacks.join(', ')}` : l.state.startsWith("Can't") || l.state.startsWith('herdr') ? l.state : 'helper put there again, worker started again'}${missing.length ? `; not there: ${missing.join(', ')}` : ''}${l.chrome ? `; ${l.chrome}` : ''}`)
     }
-    return out.length ? out : ['No other machines saved in herdr (herdr machine add <ssh target> adds one).']
+    return out.length ? out : [BACKEND === 'hc' ? 'No other machines in herdr-core (hc machine add <ssh target> adds one).' : 'No other machines saved in herdr (herdr machine add <ssh target> adds one).']
   }
 
   /** each machine's line for Settings → Machines */

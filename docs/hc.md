@@ -9,9 +9,18 @@ agent list and its working, done and blocked marks follow Shepherdr's agents too
 ## Turn it on
 
 Set `SHEPHERDR_BACKEND=hc` for the server, or write `{"backend": "hc"}` to `~/.shepherdr/backend.json`. Leave both
-unset to stay on herdr. Switching does not move agents that are running: what runs in herdr keeps running there until
-you close it, and each chat starts its agent on herdr-core the next time it is needed, resuming its session. Tasks keep their worktrees, because git puts them
-where herdr did (`~/.herdr/worktrees/<repo>/<branch>`).
+unset to stay on herdr.
+
+To switch an install that already runs on herdr:
+
+1. Stop Shepherdr (`bun scripts/plugin.ts stop`).
+2. Close its coordinators and task agents in herdr. An agent still running there would keep answering the same chat
+   next to the one Shepherdr starts on herdr-core.
+3. Turn the herdr plugin's start off (or remove the plugin), so herdr's next start does not bring Shepherdr back up
+   there.
+4. Start Shepherdr on herdr-core (below). Each chat starts its agent the next time it is needed, resuming its
+   session. Tasks keep their worktrees, because git puts them where herdr did (`~/.herdr/worktrees/<repo>/<branch>`).
+   Resuming chats and tasks that were started on herdr has not been tested yet.
 
 On herdr-core there is no herdr plugin to start Shepherdr, so start it yourself:
 
