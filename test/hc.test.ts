@@ -1,7 +1,7 @@
 // herdr-core as the runtime (hc.ts), on a fake core (fake-hc.ts): herdr's calls become labelled terminals the Herdr
 // app shows, an agent gets the login and loses Claude Code's session markers, and what hc can't type waits for its Enter.
 import { afterAll, describe, expect, test } from 'bun:test'
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -120,7 +120,8 @@ describe("an agent's environment on herdr-core", () => {
   })
 
   test("Claude Code's and herdr's session markers are dropped before the agent runs; the login and your own stay", () => {
-    const out = execSync(`/bin/sh -c ${JSON.stringify(SCRUB)} env`, {
+    // as hc runs it: sh -c SCRUB <program>, with no outer shell to expand $v or $0 early (dash on Linux would choke)
+    const out = execFileSync('/bin/sh', ['-c', SCRUB, 'env'], {
       encoding: 'utf8',
       env: { PATH: process.env.PATH, CLAUDECODE: '1', CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_CODE_OAUTH_TOKEN: 'keep', CLAUDE_PID: '9', HERDR_PANE_ID: 'p1', CLAUDE_TEA_API: 'mine' },
     })
