@@ -29,18 +29,24 @@ SHEPHERDR_BACKEND=hc bun scripts/plugin.ts start    # stop, status and share wor
 ```
 
 To keep it running across logins, use a launchd agent (macOS) or a systemd user service (Linux) that runs that
-command. Give it the PATH your shell has, so it finds `hc`, `git` and the agent CLIs. Give it your Claude login and
-provider keys too (`CLAUDE_CODE_OAUTH_TOKEN`, `*_API_KEY`), the way your shell profile sets them. A launchd example:
+command once at login. Give it the PATH your shell has, so it finds `bun`, `hc`, `git` and the agent CLIs, and your
+Claude login and provider keys (`CLAUDE_CODE_OAUTH_TOKEN`, `*_API_KEY`). On macOS, `zsh -lc` does not read `~/.zshrc`,
+so source it yourself. Use no `KeepAlive`: `plugin.ts start` detaches the supervisor and returns, and the supervisor
+hands itself over to a new copy of itself when its own code changes. `AbandonProcessGroup` keeps launchd from killing
+the detached supervisor when the job ends. An example, `~/Library/LaunchAgents/dev.shepherdr.hc.plist`:
 
 ```xml
+<key>Label</key><string>dev.shepherdr.hc</string>
 <key>ProgramArguments</key>
-<array><string>/bin/zsh</string><string>-lc</string>
-  <string>. ~/.secrets.env; cd ~/path/to/shepherdr &amp;&amp; SHEPHERDR_BACKEND=hc exec bun scripts/supervise.ts</string></array>
-<key>KeepAlive</key><true/>
+<array><string>/bin/zsh</string><string>-c</string>
+  <string>source ~/.zshrc &gt;/dev/null 2&gt;&amp;1; export SHEPHERDR_BACKEND=hc; cd ~/path/to/shepherdr &amp;&amp; exec bun scripts/plugin.ts start</string></array>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>/Users/you/.bun/bin:/opt/homebrew/bin:/usr/bin:/bin</string></dict>
+<key>RunAtLoad</key><true/>
+<key>AbandonProcessGroup</key><true/>
 ```
 
-Here `supervise.ts` runs in the foreground: it restarts the server and rebuilds it when the checkout moves to a new
-commit. `plugin.ts start` detaches that same supervisor.
+Load it with `launchctl bootstrap gui/$(id -u) <plist>`. `bun scripts/plugin.ts stop` and `status` still work: the
+supervisor keeps its pid in `~/.shepherdr/run`.
 
 ## Other machines
 
